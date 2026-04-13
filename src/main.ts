@@ -27,11 +27,21 @@ async function bootstrap() {
   app.use(morgan('combined'));
   app.use(cookieParser());
 
+  // ✅ CORRECTION : Ajout de 'x-session-id' dans allowedHeaders
   app.enableCors({
     origin: process.env.FRONTEND_URL || 'http://localhost:3000',
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
+    allowedHeaders: [
+      'Content-Type', 
+      'Authorization',
+      'x-session-id',        // ✅ AJOUTÉ pour la mémoire conversationnelle
+      'Accept',
+      'Origin',
+      'X-Requested-With',
+    ],
+    exposedHeaders: ['x-session-id'],
+    maxAge: 86400, // Cache preflight 24h
   });
 
   app.setGlobalPrefix('api/v1');

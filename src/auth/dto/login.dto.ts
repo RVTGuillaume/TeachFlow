@@ -10,4 +10,6 @@ export class LoginDto {
   @IsString()
   @MinLength(8, { message: 'Mot de passe trop court' })
   password: string;
+  
+  // ✅ CORRECT: pas de champ rememberMe
 }

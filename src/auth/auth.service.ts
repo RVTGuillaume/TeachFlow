@@ -69,6 +69,7 @@ export class AuthService {
 
     const token = this.generateToken(user);
 
+    // ✅ RETOUR SIMPLE: pas de rememberMe, pas de refreshToken
     return {
       message: 'Connexion réussie',
       token,
@@ -78,6 +79,15 @@ export class AuthService {
         email: user.email,
         role: user.role,
       },
+    };
+  }
+
+  async logout(userId: string) {
+    // ✅ AJOUTÉ: méthode logout
+    // Pour l'instant, on retourne juste un message
+    // Optionnel: Vous pouvez blacklister le token ou supprimer un refresh token
+    return {
+      message: 'Déconnexion réussie',
     };
   }
 
