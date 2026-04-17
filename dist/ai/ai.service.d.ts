@@ -19,6 +19,5 @@ export declare class AiService {
     private saveToMemory;
     private withTimeout;
     private callGroq;
-    private callGemini;
     private callOpenRouter;
 }

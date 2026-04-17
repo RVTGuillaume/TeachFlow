@@ -12,61 +12,100 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.AiService = void 0;
 const common_1 = require("@nestjs/common");
 const groq_sdk_1 = __importDefault(require("groq-sdk"));
-const generative_ai_1 = require("@google/generative-ai");
 const EXPERT_SYSTEM_PROMPT = `
-Tu es **TeachFlow IA**, un assistant expert, autonome et adaptatif.
+Tu es **TeachFlow IA**, un assistant intelligent, fiable et polyvalent conçu pour fournir des réponses précises, utiles et adaptées à chaque contexte.
 
-🎯 OBJECTIF : Réponses exactes, claires, naturelles et utiles.
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 OBJECTIF PRINCIPAL
+━━━━━━━━━━━━━━━━━━━━━━
+Fournir des réponses exactes, claires, structurées et immédiatement exploitables.
 
-🧠 ADAPTATION AUTOMATIQUE :
-- Question simple → 1-2 phrases directes
-- Question intermédiaire → explication structurée
-- Question complexe → analyse détaillée avec exemples
+━━━━━━━━━━━━━━━━━━━━━━
+🧠 ADAPTATION INTELLIGENTE
+━━━━━━━━━━━━━━━━━━━━━━
+- Question simple → réponse courte, directe (1 à 3 phrases)
+- Question intermédiaire → explication structurée et claire
+- Question complexe → analyse approfondie avec étapes, exemples et cas concrets
 
-💬 STYLE : Professionnel, naturel, concis. Jamais robotique.
+━━━━━━━━━━━━━━━━━━━━━━
+💬 STYLE DE RÉPONSE
+━━━━━━━━━━━━━━━━━━━━━━
+- Professionnel, naturel et fluide
+- Clair et humain (éviter le ton robotique)
+- Précis sans être inutilement long
+- Adapté au niveau de compréhension de l’utilisateur
 
-📊 FORMAT : Markdown si pertinent (listes, tableaux).
+━━━━━━━━━━━━━━━━━━━━━━
+📊 FORMATAGE
+━━━━━━━━━━━━━━━━━━━━━━
+- Utilise Markdown si pertinent (titres, listes, tableaux, code)
+- Structure toujours les réponses longues pour améliorer la lisibilité
 
-💡 OBLIGATOIRE : Toujours finir par "💡 **Suggestion :** (1 ligne utile)"
+━━━━━━━━━━━━━━━━━━━━━━
+💡 CLAUSE OBLIGATOIRE
+━━━━━━━━━━━━━━━━━━━━━━
+Chaque réponse doit se terminer par une seule ligne :
 
-🚫 INTERDIT : Répéter la question, être vague, sur-expliquer.
+💡 **Suggestion :** une recommandation courte et utile liée au sujet
 
-🌍 CONTEXTE : TeachFlow (Madagascar, Ariary Ar) - Réponds à tout sujet.
+━━━━━━━━━━━━━━━━━━━━━━
+🚫 INTERDICTIONS STRICTES
+━━━━━━━━━━━━━━━━━━━━━━
+- Ne jamais répéter la question
+- Ne pas être vague ou générique
+- Ne pas sur-expliquer inutilement
+- Ne jamais demander d’informations sensibles (mots de passe, clés API, tokens)
+- Ne jamais exposer de données privées ou sécurisées
 
-🔐 SÉCURITÉ : Jamais de clés API, tokens ou mots de passe.
+━━━━━━━━━━━━━━━━━━━━━━
+🌍 CONTEXTE D’UTILISATION
+━━━━━━━━━━━━━━━━━━━━━━
+TeachFlow est une plateforme éducative utilisée à Madagascar (Ariary - Ar), mais tu peux répondre à tous les sujets (technologie, éducation, science, business, etc.).
 
-🎯 PRIORITÉ : Exactitude > Adaptation > Clarté > Utilité > Concision
+━━━━━━━━━━━━━━━━━━━━━━
+🔐 SÉCURITÉ ET ÉTHIQUE
+━━━━━━━━━━━━━━━━━━━━━━
+- Refuser toute demande liée à des identifiants sensibles ou secrets
+- Prioriser la sécurité, la confidentialité et la conformité
+- Ne jamais inventer des informations critiques non vérifiées
+
+━━━━━━━━━━━━━━━━━━━━━━
+🎯 PRIORITÉ DE RÉPONSE
+━━━━━━━━━━━━━━━━━━━━━━
+Exactitude > Clarté > Utilité > Adaptation > Concision
 `;
 let AiService = class AiService {
     responseCache = new Map();
     CACHE_TTL = 5 * 60 * 1000;
     providers = [
         {
-            name: 'gemini',
-            call: (p, s, a) => this.callGemini(p, s, a),
-        },
-        {
             name: 'groq-llama70b',
+            timeout: 8000,
             call: (p, s, a) => this.callGroq(p, s, 'llama-3.3-70b-versatile', a),
         },
         {
-            name: 'llama405b',
-            call: (p, s, a) => this.callOpenRouter(p, s, 'meta-llama/llama-3.1-405b-instruct:free', a),
-        },
-        {
-            name: 'mistral',
-            call: (p, s, a) => this.callOpenRouter(p, s, 'mistralai/mistral-7b-instruct:free', a),
-        },
-        {
             name: 'groq-llama3',
+            timeout: 8000,
             call: (p, s, a) => this.callGroq(p, s, 'llama-3.1-8b-instant', a),
         },
         {
             name: 'groq-gemma',
+            timeout: 8000,
             call: (p, s, a) => this.callGroq(p, s, 'gemma2-9b-it', a),
         },
         {
+            name: 'llama405b',
+            timeout: 8000,
+            call: (p, s, a) => this.callOpenRouter(p, s, 'meta-llama/llama-3.1-405b-instruct:free', a),
+        },
+        {
+            name: 'mistral',
+            timeout: 8000,
+            call: (p, s, a) => this.callOpenRouter(p, s, 'mistralai/mistral-7b-instruct:free', a),
+        },
+        {
             name: 'gemma2',
+            timeout: 8000,
             call: (p, s, a) => this.callOpenRouter(p, s, 'google/gemma-2-9b-it:free', a),
         },
     ];
@@ -83,7 +122,7 @@ let AiService = class AiService {
         const enrichedPrompt = this.buildEnrichedPrompt(prompt, context, sessionId, analysis);
         for (const provider of this.providers) {
             try {
-                const rawResponse = await this.withTimeout(provider.call(enrichedPrompt, EXPERT_SYSTEM_PROMPT, analysis), 8000);
+                const rawResponse = await this.withTimeout(provider.call(enrichedPrompt, EXPERT_SYSTEM_PROMPT, analysis), provider.timeout);
                 let clean = this.normalizeResponse(rawResponse);
                 clean = this.generateSmartSuggestion(clean, prompt);
                 if (sessionId) {
@@ -124,15 +163,11 @@ let AiService = class AiService {
     }
     setCachedResponse(prompt, result) {
         const key = this.generateCacheKey(prompt);
-        this.responseCache.set(key, {
-            ...result,
-            timestamp: Date.now(),
-        });
+        this.responseCache.set(key, { ...result, timestamp: Date.now() });
         if (this.responseCache.size > 100) {
             const oldestKey = this.responseCache.keys().next().value;
-            if (oldestKey) {
+            if (oldestKey)
                 this.responseCache.delete(oldestKey);
-            }
         }
     }
     generateCacheKey(prompt) {
@@ -140,12 +175,10 @@ let AiService = class AiService {
     }
     analyzePrompt(prompt) {
         const length = prompt.trim().length;
-        if (length < 40) {
+        if (length < 40)
             return { complexity: 'simple' };
-        }
-        if (length < 120) {
+        if (length < 120)
             return { complexity: 'medium' };
-        }
         return { complexity: 'complex' };
     }
     buildEnrichedPrompt(prompt, context, sessionId, analysis) {
@@ -157,9 +190,8 @@ let AiService = class AiService {
         if (sessionId && this.conversationMemory.has(sessionId)) {
             const history = this.conversationMemory.get(sessionId);
             if (history && history.length > 0) {
-                const last = history.slice(-3);
                 enriched += `📜 HISTORIQUE :\n`;
-                last.forEach((h) => {
+                history.slice(-3).forEach((h) => {
                     enriched += `Q: ${h.question}\nR: ${h.answer.substring(0, 150)}...\n`;
                 });
                 enriched += `\n`;
@@ -183,25 +215,19 @@ ${prompt}
         return text.replace(/\n{3,}/g, '\n\n').trim();
     }
     generateSmartSuggestion(text, prompt) {
-        if (text.includes('💡')) {
+        if (text.includes('💡'))
             return text;
-        }
-        const lowerPrompt = prompt.toLowerCase();
-        if (lowerPrompt.includes('code') ||
-            lowerPrompt.includes('fonction') ||
-            lowerPrompt.includes('implémente')) {
+        const p = prompt.toLowerCase();
+        if (p.includes('code') || p.includes('fonction') || p.includes('implémente')) {
             return text.trim() + '\n\n💡 **Suggestion :** Voulez-vous un exemple concret de code ou une explication plus détaillée ?';
         }
-        if (lowerPrompt.includes('explique') ||
-            lowerPrompt.includes('pourquoi') ||
-            lowerPrompt.includes('comment')) {
+        if (p.includes('explique') || p.includes('pourquoi') || p.includes('comment')) {
             return text.trim() + '\n\n💡 **Suggestion :** Souhaitez-vous un résumé, un exemple pratique ou approfondir un point spécifique ?';
         }
-        if (lowerPrompt.includes('différence') ||
-            lowerPrompt.includes('comparaison')) {
+        if (p.includes('différence') || p.includes('comparaison')) {
             return text.trim() + '\n\n💡 **Suggestion :** Voulez-vous un tableau comparatif ou des exemples concrets ?';
         }
-        if (lowerPrompt.includes('architecture') || lowerPrompt.includes('conçois')) {
+        if (p.includes('architecture') || p.includes('conçois')) {
             return text.trim() + '\n\n💡 **Suggestion :** Souhaitez-vous un diagramme ou des détails d\'implémentation ?';
         }
         return text.trim() + '\n\n💡 **Suggestion :** Voulez-vous approfondir ce sujet ou poser une autre question ?';
@@ -212,14 +238,12 @@ ${prompt}
         }
         const memory = this.conversationMemory.get(sessionId);
         memory.push({ question, answer });
-        if (memory.length > 10) {
+        if (memory.length > 10)
             memory.shift();
-        }
         if (this.conversationMemory.size > 50) {
             const firstKey = this.conversationMemory.keys().next().value;
-            if (firstKey) {
+            if (firstKey)
                 this.conversationMemory.delete(firstKey);
-            }
         }
     }
     async withTimeout(promise, ms) {
@@ -230,13 +254,9 @@ ${prompt}
     }
     async callGroq(prompt, system, model, analysis) {
         const { complexity } = analysis;
-        const maxTokens = complexity === 'simple' ? 400 :
-            complexity === 'medium' ? 1000 : 2000;
-        const temperature = complexity === 'simple' ? 0.3 :
-            complexity === 'medium' ? 0.5 : 0.7;
-        const client = new groq_sdk_1.default({
-            apiKey: process.env.GROQ_API_KEY,
-        });
+        const maxTokens = complexity === 'simple' ? 400 : complexity === 'medium' ? 1000 : 2000;
+        const temperature = complexity === 'simple' ? 0.3 : complexity === 'medium' ? 0.5 : 0.7;
+        const client = new groq_sdk_1.default({ apiKey: process.env.GROQ_API_KEY });
         const res = await client.chat.completions.create({
             model,
             messages: [
@@ -244,42 +264,17 @@ ${prompt}
                 { role: 'user', content: prompt },
             ],
             max_tokens: maxTokens,
-            temperature: temperature,
+            temperature,
         });
         const content = res.choices[0]?.message?.content;
         if (!content)
             throw new Error(`Groq (${model}) vide`);
         return content;
     }
-    async callGemini(prompt, system, analysis) {
-        const { complexity } = analysis;
-        const maxTokens = complexity === 'simple' ? 400 :
-            complexity === 'medium' ? 1000 : 2000;
-        const temperature = complexity === 'simple' ? 0.3 :
-            complexity === 'medium' ? 0.5 : 0.7;
-        const genAI = new generative_ai_1.GoogleGenerativeAI(process.env.GOOGLE_GEMINI_API_KEY || '');
-        const model = genAI.getGenerativeModel({
-            model: 'gemini-1.5-flash',
-            systemInstruction: system,
-        });
-        const result = await model.generateContent({
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            generationConfig: {
-                temperature: temperature,
-                maxOutputTokens: maxTokens,
-            },
-        });
-        const text = result.response.text();
-        if (!text)
-            throw new Error('Gemini vide');
-        return text;
-    }
     async callOpenRouter(prompt, system, model, analysis) {
         const { complexity } = analysis;
-        const maxTokens = complexity === 'simple' ? 400 :
-            complexity === 'medium' ? 1000 : 2000;
-        const temperature = complexity === 'simple' ? 0.3 :
-            complexity === 'medium' ? 0.5 : 0.7;
+        const maxTokens = complexity === 'simple' ? 400 : complexity === 'medium' ? 1000 : 2000;
+        const temperature = complexity === 'simple' ? 0.3 : complexity === 'medium' ? 0.5 : 0.7;
         const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
             method: 'POST',
             headers: {
@@ -295,7 +290,7 @@ ${prompt}
                     { role: 'user', content: prompt },
                 ],
                 max_tokens: maxTokens,
-                temperature: temperature,
+                temperature,
             }),
         });
         if (!response.ok) {
