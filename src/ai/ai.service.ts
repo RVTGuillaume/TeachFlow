@@ -81,43 +81,76 @@ export class AiService {
   private responseCache: Map<string, CacheEntry> = new Map();
   private readonly CACHE_TTL = 5 * 60 * 1000; // 5 minutes
 
-  // Groq en tête — Gemini retiré (quota épuisé / région non supportée)
+  // Modèles lus depuis les variables d'environnement (Render), avec des valeurs
+  // par défaut valides. Si un modèle est retiré, il suffit de changer la variable
+  // d'environnement : pas besoin de toucher au code.
   private readonly providers = [
     {
-      name: 'groq-llama70b',
-      timeout: 8000,
+      name: 'groq-gpt-oss-120b',
+      timeout: 25000,
       call: (p: string, s: string, a: PromptAnalysis) =>
-        this.callGroq(p, s, 'llama-3.3-70b-versatile', a),
+        this.callGroq(
+          p,
+          s,
+          process.env.GROQ_MODEL_1 || 'openai/gpt-oss-120b',
+          a,
+        ),
     },
     {
-      name: 'groq-llama3',
-      timeout: 8000,
+      name: 'groq-gpt-oss-20b',
+      timeout: 25000,
       call: (p: string, s: string, a: PromptAnalysis) =>
-        this.callGroq(p, s, 'llama-3.1-8b-instant', a),
+        this.callGroq(
+          p,
+          s,
+          process.env.GROQ_MODEL_2 || 'openai/gpt-oss-20b',
+          a,
+        ),
     },
     {
-      name: 'groq-gemma',
-      timeout: 8000,
+      name: 'groq-qwen',
+      timeout: 25000,
       call: (p: string, s: string, a: PromptAnalysis) =>
-        this.callGroq(p, s, 'gemma2-9b-it', a),
+        this.callGroq(
+          p,
+          s,
+          process.env.GROQ_MODEL_3 || 'qwen/qwen3.8-27b',
+          a,
+        ),
     },
     {
-      name: 'llama405b',
-      timeout: 8000,
+      name: 'openrouter-gemma4-31b',
+      timeout: 25000,
       call: (p: string, s: string, a: PromptAnalysis) =>
-        this.callOpenRouter(p, s, 'meta-llama/llama-3.1-405b-instruct:free', a),
+        this.callOpenRouter(
+          p,
+          s,
+          process.env.OPENROUTER_MODEL_1 || 'google/gemma-4-31b-it:free',
+          a,
+        ),
     },
     {
-      name: 'mistral',
-      timeout: 8000,
+      name: 'openrouter-nemotron',
+      timeout: 25000,
       call: (p: string, s: string, a: PromptAnalysis) =>
-        this.callOpenRouter(p, s, 'mistralai/mistral-7b-instruct:free', a),
+        this.callOpenRouter(
+          p,
+          s,
+          process.env.OPENROUTER_MODEL_2 ||
+            'nvidia/nemotron-3-super-120b-a12b:free',
+          a,
+        ),
     },
     {
-      name: 'gemma2',
-      timeout: 8000,
+      name: 'openrouter-gemma4-26b',
+      timeout: 25000,
       call: (p: string, s: string, a: PromptAnalysis) =>
-        this.callOpenRouter(p, s, 'google/gemma-2-9b-it:free', a),
+        this.callOpenRouter(
+          p,
+          s,
+          process.env.OPENROUTER_MODEL_3 || 'google/gemma-4-26b-a4b-it:free',
+          a,
+        ),
     },
   ];
 
@@ -173,7 +206,10 @@ export class AiService {
 
         return result;
       } catch (e) {
-        console.warn(`[AI] ${provider.name} indisponible — fallback...`, e.message);
+        console.warn(
+          `[AI] ${provider.name} indisponible — fallback...`,
+          e?.message ?? e,
+        );
       }
     }
 
@@ -196,7 +232,9 @@ export class AiService {
   // =========================
   // 💾 CACHE
   // =========================
-  private getCachedResponse(prompt: string): { response: string; provider: string } | null {
+  private getCachedResponse(
+    prompt: string,
+  ): { response: string; provider: string } | null {
     const key = this.generateCacheKey(prompt);
     const entry = this.responseCache.get(key);
 
@@ -269,8 +307,8 @@ export class AiService {
       complexity === 'simple'
         ? 'Réponds en 1-2 phrases maximum, direct et concis.'
         : complexity === 'medium'
-        ? 'Explique clairement avec structure légère si nécessaire.'
-        : 'Fournis une réponse détaillée avec raisonnement et exemples.';
+          ? 'Explique clairement avec structure légère si nécessaire.'
+          : 'Fournis une réponse détaillée avec raisonnement et exemples.';
 
     enriched += `
 🧠 STYLE : Assistant professionnel, clair et naturel.
@@ -287,7 +325,10 @@ ${prompt}
   // 🧹 CLEANING
   // =========================
   private normalizeResponse(text: string): string {
-    return text.replace(/\n{3,}/g, '\n\n').trim();
+    return text
+      .replace(/<think>[\s\S]*?<\/think>/gi, '') // retire le raisonnement interne éventuel
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
   }
 
   private generateSmartSuggestion(text: string, prompt: string): string {
@@ -295,26 +336,53 @@ ${prompt}
 
     const p = prompt.toLowerCase();
 
-    if (p.includes('code') || p.includes('fonction') || p.includes('implémente')) {
-      return text.trim() + '\n\n💡 **Suggestion :** Voulez-vous un exemple concret de code ou une explication plus détaillée ?';
+    if (
+      p.includes('code') ||
+      p.includes('fonction') ||
+      p.includes('implémente')
+    ) {
+      return (
+        text.trim() +
+        '\n\n💡 **Suggestion :** Voulez-vous un exemple concret de code ou une explication plus détaillée ?'
+      );
     }
-    if (p.includes('explique') || p.includes('pourquoi') || p.includes('comment')) {
-      return text.trim() + '\n\n💡 **Suggestion :** Souhaitez-vous un résumé, un exemple pratique ou approfondir un point spécifique ?';
+    if (
+      p.includes('explique') ||
+      p.includes('pourquoi') ||
+      p.includes('comment')
+    ) {
+      return (
+        text.trim() +
+        '\n\n💡 **Suggestion :** Souhaitez-vous un résumé, un exemple pratique ou approfondir un point spécifique ?'
+      );
     }
     if (p.includes('différence') || p.includes('comparaison')) {
-      return text.trim() + '\n\n💡 **Suggestion :** Voulez-vous un tableau comparatif ou des exemples concrets ?';
+      return (
+        text.trim() +
+        '\n\n💡 **Suggestion :** Voulez-vous un tableau comparatif ou des exemples concrets ?'
+      );
     }
     if (p.includes('architecture') || p.includes('conçois')) {
-      return text.trim() + '\n\n💡 **Suggestion :** Souhaitez-vous un diagramme ou des détails d\'implémentation ?';
+      return (
+        text.trim() +
+        "\n\n💡 **Suggestion :** Souhaitez-vous un diagramme ou des détails d'implémentation ?"
+      );
     }
 
-    return text.trim() + '\n\n💡 **Suggestion :** Voulez-vous approfondir ce sujet ou poser une autre question ?';
+    return (
+      text.trim() +
+      '\n\n💡 **Suggestion :** Voulez-vous approfondir ce sujet ou poser une autre question ?'
+    );
   }
 
   // =========================
   // 💾 MEMORY
   // =========================
-  private saveToMemory(sessionId: string, question: string, answer: string): void {
+  private saveToMemory(
+    sessionId: string,
+    question: string,
+    answer: string,
+  ): void {
     if (!this.conversationMemory.has(sessionId)) {
       this.conversationMemory.set(sessionId, []);
     }
@@ -353,10 +421,19 @@ ${prompt}
   ): Promise<string> {
     const { complexity } = analysis;
 
-    const maxTokens = complexity === 'simple' ? 400 : complexity === 'medium' ? 1000 : 2000;
-    const temperature = complexity === 'simple' ? 0.3 : complexity === 'medium' ? 0.5 : 0.7;
+    // Les modèles à raisonnement (gpt-oss, qwen) consomment des tokens pour
+    // réfléchir : il faut des limites larges, sinon la réponse sort vide.
+    const maxTokens =
+      complexity === 'simple' ? 1500 : complexity === 'medium' ? 2500 : 4000;
+    const temperature =
+      complexity === 'simple' ? 0.3 : complexity === 'medium' ? 0.5 : 0.7;
 
     const client = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+    // Raisonnement léger pour gpt-oss : réponses plus rapides
+    const extra = model.startsWith('openai/gpt-oss')
+      ? { reasoning_effort: 'low' }
+      : {};
 
     const res = await client.chat.completions.create({
       model,
@@ -366,6 +443,7 @@ ${prompt}
       ],
       max_tokens: maxTokens,
       temperature,
+      ...(extra as any),
     });
 
     const content = res.choices[0]?.message?.content;
@@ -385,30 +463,38 @@ ${prompt}
   ): Promise<string> {
     const { complexity } = analysis;
 
-    const maxTokens = complexity === 'simple' ? 400 : complexity === 'medium' ? 1000 : 2000;
-    const temperature = complexity === 'simple' ? 0.3 : complexity === 'medium' ? 0.5 : 0.7;
+    const maxTokens =
+      complexity === 'simple' ? 1500 : complexity === 'medium' ? 2500 : 4000;
+    const temperature =
+      complexity === 'simple' ? 0.3 : complexity === 'medium' ? 0.5 : 0.7;
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'http://localhost:3000',
-        'X-Title': 'TeachFlow AI',
+    const response = await fetch(
+      'https://openrouter.ai/api/v1/chat/completions',
+      {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${process.env.OPENROUTER_API_KEY}`,
+          'Content-Type': 'application/json',
+          'HTTP-Referer': 'http://localhost:3000',
+          'X-Title': 'TeachFlow AI',
+        },
+        body: JSON.stringify({
+          model,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: prompt },
+          ],
+          max_tokens: maxTokens,
+          temperature,
+        }),
       },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: prompt },
-        ],
-        max_tokens: maxTokens,
-        temperature,
-      }),
-    });
+    );
 
     if (!response.ok) {
-      throw new Error(`OpenRouter (${model}) ${response.status}`);
+      const body = await response.text().catch(() => '');
+      throw new Error(
+        `OpenRouter (${model}) ${response.status} ${body.slice(0, 200)}`,
+      );
     }
 
     const data = await response.json();
